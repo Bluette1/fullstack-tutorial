@@ -3,7 +3,7 @@ import {
   NormalizedCacheObject,
   ApolloProvider,
   gql,
-  useQuery
+  useQuery,
 } from '@apollo/client';
 import { cache } from './cache';
 import React from 'react';
@@ -30,6 +30,15 @@ const client: ApolloClient<NormalizedCacheObject> = new ApolloClient({
 });
 
 injectStyles();
+const IS_LOGGED_IN = gql`
+  query IsUserLoggedIn {
+    isLoggedIn @client
+  }
+`;
+const IsLoggedIn = () => {
+  const { data } = useQuery(IS_LOGGED_IN);
+  return data.isLoggedIn ? <Pages /> : <Login />;
+};
 
 // Pass the ApolloClient instance to the ApolloProvider component
 ReactDOM.render(
@@ -38,15 +47,3 @@ ReactDOM.render(
   </ApolloProvider>,
   document.getElementById('root')
 );
-
-
-const IS_LOGGED_IN = gql`
-  query IsUserLoggedIn {
-    isLoggedIn @client
-  }
-`;
-
-function IsLoggedIn() {
-  const { data } = useQuery(IS_LOGGED_IN);
-  return data.isLoggedIn ? <Pages /> : <Login />;
-}
