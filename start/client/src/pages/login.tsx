@@ -13,16 +13,14 @@ export const LOGIN_USER = gql`
   }
 `;
 
-export default function Login() {
-  const [login, { loading, error }] = useMutation<
-    LoginTypes.Login,
-    LoginTypes.LoginVariables
-  >(LOGIN_USER);
-
-  if (loading) return <Loading />;
-  if (error) return <p>An error occurred</p>;
-
-  return <LoginForm login={login} />;
-}
-
-
+const [login, { loading, error }] = useMutation<
+  LoginTypes.Login,
+  LoginTypes.LoginVariables
+>(LOGIN_USER, {
+  onCompleted({ login }) {
+    if (login) {
+      localStorage.setItem('token', login.token as string);
+      localStorage.setItem('userId', login.id as string);
+    }
+  },
+});
