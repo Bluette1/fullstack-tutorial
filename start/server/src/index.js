@@ -1,54 +1,76 @@
 require('dotenv').config();
-const express = require('express');
-const { ApolloServer } = require('apollo-server-express');
+
+const { ApolloServer } = require('apollo-server');
+const isEmail = require('isemail');
+
 const typeDefs = require('./schema');
 const resolvers = require('./resolvers');
 const { createStore } = require('./utils');
-const isEmail = require('isemail');
 
 const LaunchAPI = require('./datasources/launch');
 const UserAPI = require('./datasources/user');
-const path = require('path');
 
-async function startApolloServer() {
-  const app = express();
-  const store = createStore();
+const internalEngineDemo = require('./engine-demo');
 
-  const server = new ApolloServer({
-    context: async ({ req }) => {
-      // simple auth check on every request
-      const auth = (req.headers && req.headers.authorization) || '';
-      const email = Buffer.from(auth, 'base64').toString('ascii');
-      if (!isEmail.validate(email)) return { user: null };
-      // find a user by their email
-      const users = await store.users.findOrCreate({ where: { email } });
-      const user = (users && users[0]) || null;
-      return { user: { ...user.dataValues } };
-    },
-    typeDefs,
-    resolvers,
-    dataSources: () => ({
-      launchAPI: new LaunchAPI(),
-      userAPI: new UserAPI({ store }),
-    }),
+// creates a sequelize connection once. NOT for every request
+const store = createStore();
+
+// set up any dataSources our resolvers need
+const dataSources = () => ({
+  launchAPI: new LaunchAPI(),
+  userAPI: new UserAPI({ store }),
+});
+
+// the function that sets up the global context for each resolver, using the req
+const context = async ({ req }) => {
+  // simple auth check on every request
+  const auth = (req.headers && req.headers.authorization) || '';
+  const email = Buffer.from(auth, 'base64').toString('ascii');
+
+  // if the email isn't formatted validly, return null for user
+  if (!isEmail.validate(email)) return { user: null };
+  // find a user by their email
+  const users = await store.users.findOrCreate({ where: { email } });
+  const user = users && users[0] ? users[0] : null;
+
+  return { user };
+};
+
+// Set up Apollo Server
+const server = new ApolloServer({
+  typeDefs,
+  resolvers,
+  dataSources,
+  context,
+  introspection: true,
+  playground: true,
+  engine: {
+    apiKey: process.env.ENGINE_API_KEY,
+    ...internalEngineDemo,
+  },
+});
+
+// Start our server if we're not in a test env.
+// if we're in a test env, we'll manually start it in a test
+if (process.env.NODE_ENV !== 'test') {
+  server.listen().then(() => {
+    console.log(`
+      Server is running!
+      Listening on port 4000
+      Query at https://studio.apollographql.com/dev
+    `);
   });
-
-  await server.start();
-
-  server.applyMiddleware({ app });
-
-  app.use(express.static('public'));
-
-  app.use((req, res) => {
-    res.status(200);
-    res.sendFile(path.resolve(__dirname, 'public', 'index.html'));
-    res.end();
-  });
-
-  const PORT = process.env.PORT || 4000;
-
-  await new Promise((resolve) => app.listen({ port: PORT }, resolve));
-  console.log(`🚀 Server ready at http://localhost:4000${server.graphqlPath}`);
-  return { server, app };
 }
-startApolloServer();
+
+// export all the important pieces for integration/e2e tests to use
+module.exports = {
+  dataSources,
+  context,
+  typeDefs,
+  resolvers,
+  ApolloServer,
+  LaunchAPI,
+  UserAPI,
+  store,
+  server,
+};
