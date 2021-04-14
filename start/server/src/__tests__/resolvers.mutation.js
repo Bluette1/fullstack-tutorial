@@ -97,12 +97,12 @@ describe('[Mutation.login]', () => {
 
   it('returns base64 encoded email if successful', async () => {
     const args = { email: 'a@a.a' };
-    findOrCreateUser.mockReturnValueOnce(true);
+    findOrCreateUser.mockReturnValueOnce({token: 'YUBhLmE='});
     const base64Email = Buffer.from(mockContext.user.email).toString('base64');
 
     // check the resolver response
     const res = await resolvers.Mutation.login(null, args, mockContext);
-    expect(res).toEqual('YUBhLmE=');
+    expect(res.token).toEqual(base64Email);
 
     // check if the dataSource was called with correct args
     expect(findOrCreateUser).toBeCalledWith(args);
